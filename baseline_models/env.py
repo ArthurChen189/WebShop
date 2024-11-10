@@ -15,7 +15,7 @@ from web_agent_site.engine.goal import get_reward
 
 
 class WebEnv:
-    ''' A wrapper of textEnv for models. Returns valid actions at each step of the game. '''
+    """ A wrapper of textEnv for models. Returns valid actions at each step of the game. """
 
     def __init__(self, args, split, server=None, id=None):
         self.env = WebAgentTextEnv(observation_mode=args.state_format, server=server,
