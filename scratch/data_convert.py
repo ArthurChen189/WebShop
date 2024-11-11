@@ -109,7 +109,7 @@ def preprocess_trajs(trajs):
         else:
             preprocessed_trajs[instr] = [traj]
 
-    print(f"there are {len(preprocessed_trajs)} out of {len(trajs)} unique instructions")
+    print(f"there are {len(preprocessed_trajs)} out of {len(trajs)} unique base instructions")
     return preprocessed_trajs
 
 def convert_action(action):
@@ -150,21 +150,19 @@ def sanitizeStr(inStr):
     return out
 
 
-def remove_instruction(obs, instruction, test_time=False):
+def remove_instruction(obs, instruction):
     """Remove the instruction from the observation
 
     Args:
         obs (str): the observation
         instruction (str): the instruction
-        test_time (bool, optional): whether it is test time
+
     Raises:
         ValueError: if the instruction is not found in the observation
 
     Returns:
         str: the observation without the instruction
     """
-    if test_time:
-        obs = obs.replace("WebShop\n", "").replace("Amazon Shopping Game\n", "")
     if "Instruction:\n" in obs:
         split = obs.split("Instruction:\n" + instruction)
     elif "Instruction: \n" in obs:
@@ -174,10 +172,10 @@ def remove_instruction(obs, instruction, test_time=False):
     return split[1].strip()
 
 
-# this is copied from the original SwiftSage code
-def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=10, 
-                           no_instr_in_past_obs=True, no_instr_in_curr_obs=False, action_to_dict=True, input_instr=True, 
-                           tokenizer=None, max_length=None, test_time=False):
+# this is modified based on the original SwiftSage code
+def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=10, include_past_obs=False,
+                           no_instr_in_past_obs=True, no_instr_in_curr_obs=False, action_to_dict=True, input_instr=True,
+                           tokenizer=None, max_length=None):
     """Composes the input string for WebGUM, which consists of the instruction, the action history, the current observation.
     Args:
         step_id (int): the step id
@@ -196,34 +194,28 @@ def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent
         input_str: the input string for the model
         label: sanitized current action
     """
+    label = str(convert_action(curr_action)) if action_to_dict else curr_action
     input_str = ""
-    if test_time:
-        instruction = instruction.replace("Instruction: ", "")
-        label = None
-    else:
-        label = str(convert_action(curr_action)) if action_to_dict else curr_action
-
     input_str += "Instruction: " + instruction if input_instr else ""
-    
     input_str += f" </s> Time: {step_id} </s> "
      
     input_str += "Action history: </s>" 
     ind = window_size
     for obs, action in zip(recent_obs[-window_size:], recent_actions[-window_size:]):
-        processed_obs = remove_instruction(obs, instruction, test_time) if no_instr_in_past_obs else obs
+        processed_obs = remove_instruction(obs, instruction) if no_instr_in_past_obs else obs
         processed_action = str(convert_action(action)) if action_to_dict else action
-
-        input_str += f" <extra_id_{ind}> {processed_action} --> {processed_obs} | "
+        if include_past_obs:
+            input_str += f" <extra_id_{ind}> {processed_action} --> {processed_obs} |"
+        else:
+            input_str += f" <extra_id_{ind}> {processed_action} |"
         ind -= 1
     input_str += " </s> " 
 
     # current observation has instruction in it
-    curr_obs = remove_instruction(curr_obs, instruction, test_time) if no_instr_in_curr_obs else curr_obs
+    curr_obs = remove_instruction(curr_obs, instruction) if no_instr_in_curr_obs else curr_obs
     input_str += "Current observation: " + curr_obs + " " 
 
-    input_str = sanitizeStr(input_str)
-
-    eos_prompt = '</s> What action should you do next? </s> ' # it has a length of 11 tokens
+    eos_prompt = '</s> What action should you do next? </s> '
     # if tokenizer is provided, truncate the input string to the max length. Because we want to add the eos prompt
     # to the end of the input string, we need to make sure the input string is not truncated
     if tokenizer and max_length:
@@ -231,26 +223,27 @@ def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent
         if length > max_length - 11: # if the input string is too long, truncate it
             input_str = tokenizer.convert_tokens_to_string(tokenizer.tokenize(input_str, max_length=max_length-11, truncation=True, padding=False))
     input_str += eos_prompt
-    label = sanitizeStr(label) if label is not None else None
+    input_str = sanitizeStr(input_str)
     return input_str, label
 
-def compose_webshop_instance_v0(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
-    """Compose the input string for WebGUM, which consists of the instruction, the action history, the current observation.
-    This version does not convert the action to a dictionary
+def compose_webshop_instance_v1(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs):
+    """Compose the input string for WebGUM, which consists of the instruction, the action history, the observation history, the current observation.
     """
     return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=3, 
-                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=False, input_instr=True, 
-                              test_time=test_time)
+                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True, include_past_obs=True)
 
-def compose_webshop_instance_v1(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
+
+def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs):
     """Compose the input string for WebGUM, which consists of the instruction, the action history, the current observation.
+    This version does not include the past observations in the input string to ensure the observation is not truncated.
+    It has a sliding window size of 20 and does not convert the actions to dictionary format.
     """
-    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=3, 
-                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True, 
-                              test_time=test_time)
+    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=20,
+                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=False, input_instr=True, include_past_obs=False)
 
-def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
-    """Compose the input string for WebGUM, which consists of the instruction, the action history, the current observation.
+
+def compose_webshop_instance_v3(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs):
+    """Compose the input string for WebGUM, which consists of the instruction, the action history, the observation history, the current observation.
     This version ensures the eos prompt is not truncated
     """
     from transformers import AutoTokenizer
@@ -260,8 +253,8 @@ def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, rec
         cache_dir="/home/arthur/.cache/huggingface/transformers"
     )
     return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=3, 
-                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True
-                              , tokenizer=tokenizer, max_length=2048, test_time=test_time)
+                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True,
+                              tokenizer=tokenizer, max_length=2048, include_past_obs=True)
 
 
 def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
@@ -272,6 +265,8 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
         compose_webshop_instance = compose_webshop_instance_v1
     elif parser_mode == "v2":
         compose_webshop_instance = compose_webshop_instance_v2
+    elif parser_mode == "v3":
+        compose_webshop_instance = compose_webshop_instance_v3
     else:
         raise ValueError(f"Unknown parser model: {parser_mode}")
     data = []
@@ -294,7 +289,7 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--filter_long_trajs', type=int, default=20)
-    parser.add_argument('--parser_mode', type=str, default="v1", choices=["v1", "v2"])
+    parser.add_argument('--parser_mode', type=str, default="v1", choices=["v1", "v2", "v3"])
     parser.add_argument('--output_dir', type=str, default="data/preprocessed/webshop/v1")
     args = parser.parse_args()
 
