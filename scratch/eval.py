@@ -49,7 +49,7 @@ def eval(args):
     lm_model, tokenizer, sbert_model, _ = load_model(args, device)
 
     scores = []
-    for goal_idx in tqdm.tqdm(goal_idxs[10:args["max_num_runs"]]):
+    for goal_idx in tqdm.tqdm(goal_idxs[:args["max_num_runs"]]):
 
         obs, info = env.reset(goal_idx)
         goal = info['goal']

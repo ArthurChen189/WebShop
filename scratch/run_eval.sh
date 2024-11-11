@@ -4,10 +4,10 @@ export PYTHONPATH="./"
 gpu=$1  
 seed=42
 split="test"
-lm_model="/home/arthur/Workplace/R2L/grounded-adaptation/models/ckpts/webshop/checkpoint-400"
+lm_model="/checkpoint/arthur/13869724/checkpoint-400"
 compose_mode="v1"
 
-output_path="webshop_logs/${split}_reproduction_v4/"
+output_path="webshop_logs/${split}_v1/"
 eval_path="scratch"
 mkdir -p "${output_path}"
 echo "---> ${output_path}"
