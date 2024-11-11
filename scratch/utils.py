@@ -28,11 +28,16 @@ def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):
     action = None
     valid_prefix = ["click[", "search"]
     for pred in predictions[:k]:
-        prefix = pred[:6] # this will be 'click[' or 'search'
-        if prefix.strip() in valid_prefix:
+        if pred[:7] == "search[" and pred[-1] == "]":
+            # if it's a search, we check if the format is correct
             found_valid_in_top = True
             action = pred
             break
+        elif pred[:6] == "click[" and pred[-1] == "]":
+            # if it's a click, we check if it's in the valid actions
+            found_valid_in_top = True if pred.strip() in valid_actions else False
+            action = pred if found_valid_in_top else None
+
     if found_valid_in_top:
         return action 
     else:
@@ -84,22 +89,30 @@ def get_model_output(args, input_str, tokenizer, lm_model, device, logger):
     predStrs = []
     for i, pred in enumerate(lm_pred):
         text = tokenizer.decode(pred)
-        text = post_process_generation(text)
+        text = post_process_generation(text, args["compose_mode"])
         logger.info("\t" + str(i) + "\t" + str(text) )
         predStrs.append(text)
 
     return predStrs
 
-def post_process_generation(raw_pred):
-    answer_match = re.match(r'.*\'action\': \'(.*)\',.*\'ref\': \'(.*)\'.*', raw_pred)
-    if answer_match:
-        action, ref = answer_match.group(1), answer_match.group(2)
-        return recover_action({"action": action, "ref": ref})
-    else:
-        return sanitize_pred(raw_pred)
+def post_process_generation(raw_pred, compose_mode):
+    pred = raw_pred
+    if compose_mode == "v1":
+        answer_match = re.match(r'.*\'action\': \'(.*)\',.*\'ref\': \'(.*)\'.*', pred)
+        if answer_match:
+            action, ref = answer_match.group(1), answer_match.group(2)
+            pred = recover_action({"action": action, "ref": ref})
+    pred = sanitize_pred(pred, compose_mode)
+    return pred
 
-def sanitize_pred(pred):
-    pred = pred.replace("\'action\': ", "").replace("\'ref\':", "")
+def sanitize_pred(pred, compose_mode):
+    if compose_mode == "v1":
+        pred = pred.replace("\'action\': ", "").replace("\'ref\':", "")
+        pred = pred.replace("click[<unk> prev]", "click[< Prev]")
+    elif compose_mode == "v2":
+        pred = pred.replace("click[ prev]", "click[< Prev]")
+        pred = pred.replace("click[next >]", "click[Next >]")
+
     pred = pred.replace('<unk>', '').replace('<pad>', '').replace('</s>', '')
     return pred.strip()
 
