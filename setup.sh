@@ -22,11 +22,11 @@ if [ -z "$data" ]; then
 fi
 
 # Install Python Dependencies
-pip install -r requirements.txt;
+# pip install -r requirements.txt;
 
 # Install Environment Dependencies via `conda`
-conda install -c pytorch faiss-cpu;
-conda install -c conda-forge openjdk=11;
+# conda install -c pytorch faiss-cpu;
+# conda install -c conda-forge openjdk=11;
 
 # Download dataset into `data` folder via `gdown` command
 mkdir -p data;
@@ -45,7 +45,8 @@ gdown https://drive.google.com/uc?id=14Kb5SPBk_jfdLZ_CDBNitW98QLDlKR5O # items_h
 cd ..
 
 # Download spaCy large NLP model
-python -m spacy download en_core_web_lg
+python -m spacy download en_core_web_sm
+# install typing_extensions==4.5.0 to fix error
 
 # Build search engine index
 cd search_engine

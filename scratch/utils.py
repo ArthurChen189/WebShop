@@ -35,8 +35,9 @@ def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):
             break
         elif pred[:6] == "click[" and pred[-1] == "]":
             # if it's a click, we check if it's in the valid actions
-            found_valid_in_top = True if pred.strip() in valid_actions else False
-            action = pred if found_valid_in_top else None
+            found_valid_in_top = True
+            action = pred
+            break
 
     if found_valid_in_top:
         return action 
@@ -106,14 +107,13 @@ def post_process_generation(raw_pred, compose_mode):
     return pred
 
 def sanitize_pred(pred, compose_mode):
+    pred = pred.replace('<unk>', '').replace('<pad>', '').replace('</s>', '')
     if compose_mode == "v1":
         pred = pred.replace("\'action\': ", "").replace("\'ref\':", "")
         pred = pred.replace("click[<unk> prev]", "click[< Prev]")
     elif compose_mode == "v2":
         pred = pred.replace("click[ prev]", "click[< Prev]")
         pred = pred.replace("click[next >]", "click[Next >]")
-
-    pred = pred.replace('<unk>', '').replace('<pad>', '').replace('</s>', '')
     return pred.strip()
 
 
