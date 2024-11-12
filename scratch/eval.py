@@ -75,7 +75,6 @@ def eval(args):
             logger.info("Split: " + split)
             input_str, _ = compose_instance(step_id=step+1, instruction=goal, curr_action=None, 
                                             curr_obs=obs, recent_actions=recent_actions, recent_obs=recent_obs, test_time=True) 
-            ############
 
             logger.info("InputStr: " + input_str)
             predStrs = get_model_output(args, input_str, tokenizer, lm_model, device, logger)

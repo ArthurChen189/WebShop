@@ -196,7 +196,6 @@ def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent
         input_str: the input string for the model
         label: sanitized current action
     """
-    label = str(convert_action(curr_action)) if action_to_dict else curr_action
     input_str = ""
     if test_time:
         instruction = instruction.replace("Instruction: ", "")

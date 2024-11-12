@@ -26,7 +26,6 @@ def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):
     # 1) if action in top k is valid, choose it
     found_valid_in_top = False
     action = None
-    valid_prefix = ["click[", "search"]
     for pred in predictions[:k]:
         if pred[:7] == "search[" and pred[-1] == "]":
             # if it's a search, we check if the format is correct
@@ -101,15 +100,18 @@ def post_process_generation(raw_pred, compose_mode):
     if compose_mode == "v1":
         answer_match = re.match(r'.*\'action\': \'(.*)\',.*\'ref\': \'(.*)\'.*', pred)
         if answer_match:
+            # if it follows the format, we recover the action
             action, ref = answer_match.group(1), answer_match.group(2)
             pred = recover_action({"action": action, "ref": ref})
+        else:
+            # if not, we remove the format for sbert matching
+            pred = pred.replace("\'action\': ", "").replace("\'ref\':", "")
     pred = sanitize_pred(pred, compose_mode)
     return pred
 
 def sanitize_pred(pred, compose_mode):
     pred = pred.replace('<unk>', '').replace('<pad>', '').replace('</s>', '')
     if compose_mode == "v1":
-        pred = pred.replace("\'action\': ", "").replace("\'ref\':", "")
         pred = pred.replace("click[<unk> prev]", "click[< Prev]")
     elif compose_mode == "v2":
         pred = pred.replace("click[ prev]", "click[< Prev]")
