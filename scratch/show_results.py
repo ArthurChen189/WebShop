@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--log_dir", type=str, required=True)
     parser.add_argument("--split", type=str, required=True, default="test")
-    parser.add_argument("--parser_mode", type=str, choices=["v1", "v2"], required=True, default="v1")
+    parser.add_argument("--parser_mode", type=str, required=True, default="v1")
     parser.add_argument("--goals_to_skip", nargs="+", type=int, default=[])
     parser.add_argument("--skip_loops", action="store_true", default=False)
     args = parser.parse_args()

@@ -8,8 +8,8 @@
 #SBATCH --mem=64G
 #SBATCH --qos=normal
 #SBATCH --partition=rtx6000
-#SBATCH --output=webshop_logs/slurm-%j.out
-#SBATCH --error=webshop_logs/slurm-%j.err
+#SBATCH --output=webshop_logs/slurm-%j-v2.out
+#SBATCH --error=webshop_logs/slurm-%j-v2.err
 
 N_GPU=1
 

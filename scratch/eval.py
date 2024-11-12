@@ -112,8 +112,13 @@ def eval(args):
             logger.info("Recent Actions: " + str(recent_actions))
             logger.info("Recent Observations: " + str(recent_obs))
 
-            # Early stopping if we're in a loop
-            if len(recent_actions) >= 5 and len(set(recent_actions[-5:])) == 2:
+            # Early stopping if we're in a loop -> this is buggy since it'll terminate if step > 5
+            # if len(recent_actions) >= 5 and len(set(recent_actions[-5:])) == 2:
+            #     logger.info("Many recent actions in history are the same -- model is likely in a loop, stopping early.")
+            #     break
+
+            # New early stopping, if the last 5 actions are the same, we stop because it's a loop
+            if len(set(recent_actions[-5:])) == 1:
                 logger.info("Many recent actions in history are the same -- model is likely in a loop, stopping early.")
                 break
 
