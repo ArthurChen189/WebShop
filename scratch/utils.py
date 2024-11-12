@@ -34,6 +34,8 @@ def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):
             break
         elif pred[:6] == "click[" and pred[-1] == "]":
             # if it's a click, we check if it's in the valid actions
+            # TODO: we need to check the action is in valid_actions, but valid_actions uses
+            # click[item - <item name>] format instead of click[<item ID>]
             found_valid_in_top = True
             action = pred
             break
