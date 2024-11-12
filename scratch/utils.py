@@ -26,8 +26,9 @@ def findValidActionNew(predictions, valid_actions, valid_clickables, sbert_model
     # 1) if action in top k is valid, choose it
     found_valid_in_top = False
     action = None
-    clickables = [f"click[{clickable}]" for clickable in valid_clickables]
-
+    # if there are valid clickables (i.e., using v2), we use the click[item ID] format
+    # if valid_clikables is None (i.e., using v3), we use the click[item name] format
+    clickables = [f"click[{clickable}]" for clickable in valid_clickables] if valid_clickables else valid_actions
     for pred in predictions[:k]:
         if pred[:7] == "search[" and pred[-1] == "]":
             # if it's a search, we check if the format is correct
@@ -36,9 +37,8 @@ def findValidActionNew(predictions, valid_actions, valid_clickables, sbert_model
             break
         elif pred[:6] == "click[" and pred[-1] == "]":
             # if it's a click, we check if it's in the valid actions
-            # since the valid_actions uses the format "click[item - <item name>]", we use valid_clickables instead
             # find the closest clickable
-            if valid_clickables:
+            if clickables:
                 action = min(clickables, key=lambda x: editdistance.eval(x, pred.lower()))
                 found_valid_in_top = True
             else:

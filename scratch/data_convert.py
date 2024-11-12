@@ -250,22 +250,7 @@ def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, rec
                               include_past_obs=False, test_time=test_time)
 
 
-def compose_webshop_instance_v3(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
-    """Compose the input string for WebGUM, which consists of the instruction, the action history, the observation history, the current observation.
-    This version ensures the eos prompt is not truncated
-    """
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
-        "yuchenlin/swift_sw",
-        use_fast=True,
-        cache_dir="/home/arthur/.cache/huggingface/transformers"
-    )
-    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=3, 
-                              no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True,
-                              tokenizer=tokenizer, max_length=2048, include_past_obs=True, test_time=test_time)
-
-
-def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
+def construct_data(preprocessed_trajs, out_path, parser_mode="v2"):
     """
     Construct the data in the SwiftSage format and export it into a .jsonl file
     """
@@ -273,16 +258,22 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
         compose_webshop_instance = compose_webshop_instance_v1
     elif parser_mode == "v2":
         compose_webshop_instance = compose_webshop_instance_v2
-    elif parser_mode == "v3":
-        compose_webshop_instance = compose_webshop_instance_v3
+    elif parser_mode == "v2plus":
+        compose_webshop_instance = compose_webshop_instance_v2 # we use v2, but with click[item - name] format
     else:
         raise ValueError(f"Unknown parser model: {parser_mode}")
     data = []
     for instr, trajs in preprocessed_trajs.items():
         for traj in trajs:
+            if parser_mode == "v2plus":
+                if "actions_translate" not in traj:
+                    raise ValueError(f"actions_translate not found in traj: {traj}")
+                actions = traj["actions_translate"]
+            else:
+                actions = traj['actions']
+
             observations = traj['states']
-            actions = traj['actions']
-            
+
             for step_id, (action, obs) in enumerate(zip(actions, observations), start=1):
                 input_str, label = compose_webshop_instance(step_id, instr, action, obs, actions[:step_id-1], observations[:step_id-1])
                 data.append({"input": input_str, "target": label})
@@ -297,8 +288,8 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v1"):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--filter_long_trajs', type=int, default=20)
-    parser.add_argument('--parser_mode', type=str, default="v1", choices=["v1", "v2", "v3"])
-    parser.add_argument('--output_dir', type=str, default="data/preprocessed/webshop/v1")
+    parser.add_argument('--parser_mode', type=str, default="v2", choices=["v1", "v2", "v2plus"])
+    parser.add_argument('--output_dir', type=str, default="data/preprocessed/webshop/v2")
     args = parser.parse_args()
 
     # get the data from the IL trajs file

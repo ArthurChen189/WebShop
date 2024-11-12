@@ -81,7 +81,10 @@ def eval(args):
 
             # get valid action
             valid_actions = info['valid']
-            valid_clickables = env.env.get_available_actions()['clickables']
+            if args["compose_mode"] == "v2plus":
+                valid_clickables = None
+            else:
+                valid_clickables = env.env.get_available_actions()['clickables']
             action = findValidActionNew(predStrs, valid_actions, valid_clickables, sbert_model, logger )
             # we execute the action
             obs, reward, done, info = env.step(action)
