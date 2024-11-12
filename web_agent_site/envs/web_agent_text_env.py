@@ -222,6 +222,7 @@ class WebAgentTextEnv(gym.Env):
                 if t.parent.name == 'button':  # button
                     processed_t = f'[button] {t} [button_]'
                 elif t.parent.name == 'label':  # options
+                    t = self.post_process_t(t) # escape double quotes -> minor fixup
                     if f'"{t}"' in self.state['url']:
                         processed_t = f'  [clicked button] {t} [clicked button_]'
                         observation = f'You have clicked {t}.\n' + observation
@@ -237,6 +238,10 @@ class WebAgentTextEnv(gym.Env):
                 observation += processed_t + '\n'
             return observation
     
+    def post_process_t(self, t):
+        t = t.replace('"', '\\"').replace('\xa0', '\\u00a0')
+        return t
+
     def reset(self, session=None, instruction_text=None):
         """Create a new session and reset environment variables"""
         session_int = None

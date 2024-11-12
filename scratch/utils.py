@@ -28,7 +28,7 @@ def findValidActionNew(predictions, valid_actions, valid_clickables, sbert_model
     action = None
     # if there are valid clickables (i.e., using v2), we use the click[item ID] format
     # if valid_clikables is None (i.e., using v3), we use the click[item name] format
-    clickables = [f"click[{clickable}]" for clickable in valid_clickables] if valid_clickables else valid_actions
+    clickables = [f"click[{clickable}]" for clickable in valid_clickables if clickable != "search"] if valid_clickables else valid_actions
     for pred in predictions[:k]:
         if pred[:7] == "search[" and pred[-1] == "]":
             # if it's a search, we check if the format is correct
