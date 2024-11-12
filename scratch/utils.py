@@ -39,7 +39,7 @@ def findValidActionNew(predictions, valid_actions, valid_clickables, sbert_model
             # since the valid_actions uses the format "click[item - <item name>]", we use valid_clickables instead
             # find the closest clickable
             if valid_clickables:
-                action = min(clickables, key=lambda x: editdistance.eval(x, pred))
+                action = min(clickables, key=lambda x: editdistance.eval(x, pred.lower()))
                 found_valid_in_top = True
             else:
                 # if no valid clickables, there is something wrong
