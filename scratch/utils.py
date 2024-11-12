@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from data_convert import recover_action
-
+import editdistance
 
 def load_model(args, device):
     tokenizer = AutoTokenizer.from_pretrained(args["lm_path"])
@@ -22,10 +22,12 @@ def load_model(args, device):
     return lm_model, tokenizer, sbert_model, llm_model
 
 
-def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):    
+def findValidActionNew(predictions, valid_actions, valid_clickables, sbert_model, logger, k=5):
     # 1) if action in top k is valid, choose it
     found_valid_in_top = False
     action = None
+    clickables = [f"click[{clickable}]" for clickable in valid_clickables]
+
     for pred in predictions[:k]:
         if pred[:7] == "search[" and pred[-1] == "]":
             # if it's a search, we check if the format is correct
@@ -34,10 +36,14 @@ def findValidActionNew(predictions, valid_actions, sbert_model, logger, k=5):
             break
         elif pred[:6] == "click[" and pred[-1] == "]":
             # if it's a click, we check if it's in the valid actions
-            # TODO: we need to check the action is in valid_actions, but valid_actions uses
-            # click[item - <item name>] format instead of click[<item ID>]
-            found_valid_in_top = True
-            action = pred
+            # since the valid_actions uses the format "click[item - <item name>]", we use valid_clickables instead
+            # find the closest clickable
+            if valid_clickables:
+                action = min(clickables, key=lambda x: editdistance.eval(x, pred))
+                found_valid_in_top = True
+            else:
+                # if no valid clickables, there is something wrong
+                raise ValueError("No valid clickables found")
             break
 
     if found_valid_in_top:
@@ -114,10 +120,10 @@ def post_process_generation(raw_pred, compose_mode):
 def sanitize_pred(pred, compose_mode):
     pred = pred.replace('<unk>', '').replace('<pad>', '').replace('</s>', '')
     if compose_mode == "v1":
-        pred = pred.replace("click[<unk> prev]", "click[< Prev]")
+        pred = pred.replace("click[<unk> prev]", "click[< prev]")
     elif compose_mode == "v2":
-        pred = pred.replace("click[ prev]", "click[< Prev]")
-        pred = pred.replace("click[next >]", "click[Next >]")
+        pred = pred.replace("click[ prev]", "click[< prev]")
+        pred = pred.replace("click[next >]", "click[pext >]")
     return pred.strip()
 
 

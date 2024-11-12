@@ -81,7 +81,8 @@ def eval(args):
 
             # get valid action
             valid_actions = info['valid']
-            action = findValidActionNew(predStrs, valid_actions, sbert_model, logger) 
+            valid_clickables = env.env.get_available_actions()['clickables']
+            action = findValidActionNew(predStrs, valid_actions, valid_clickables, sbert_model, logger )
             # we execute the action
             obs, reward, done, info = env.step(action)
 
