@@ -29,6 +29,7 @@ TOKENIZERS_PARALLELISM=false CUDA_VISIBLE_DEVICES="${gpu}" python "${eval_path}/
     --human_goals \
     --set "${split}" \
     --seed "${seed}" \
+    --buy_last \
     --compose_mode "${compose_mode}" \
     --sbert \
     --output_path "${output_path}"
