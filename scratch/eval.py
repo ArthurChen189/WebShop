@@ -38,6 +38,8 @@ def eval(args):
         compose_instance = compose_webshop_instance_v1
     elif args["compose_mode"] == "v2":
         compose_instance = compose_webshop_instance_v2
+    elif args["compose_mode"] == "v2plus":
+        compose_instance = compose_webshop_instance_v2 # we use v2, but with click[item - name] format
     else:
         raise NotImplementedError
     
@@ -112,14 +114,13 @@ def eval(args):
             logger.info("Recent Actions: " + str(recent_actions))
             logger.info("Recent Observations: " + str(recent_obs))
 
-            # Early stopping if we're in a loop -> this is buggy since it'll terminate if step > 5
-            # if len(recent_actions) >= 5 and len(set(recent_actions[-5:])) == 2:
-            #     logger.info("Many recent actions in history are the same -- model is likely in a loop, stopping early.")
-            #     break
-
-            # New early stopping, if the last 5 actions are the same, we stop because it's a loop
-            if len(set(recent_actions[-5:])) == 1:
+            # Early stopping if we're in a loop, and we buy it if we're not going back
+            if len(set(recent_actions[-10:])) == 2 and len(recent_actions[-10:]) > 10:
                 logger.info("Many recent actions in history are the same -- model is likely in a loop, stopping early.")
+                if args["buy_last"] and action != "click[< prev]":
+                    # we buy it
+                    obs, reward, done, info = env.step("click[buy now]")
+                    score = reward * 10
                 break
 
         scores.append(score)
@@ -162,6 +163,7 @@ def parse_args():
     parser.add_argument("--num_prev_actions", type=int, default=0)
     parser.add_argument("--extra_search_path", type=str, default="")
     parser.add_argument("--step_limit", type=int, default=100)
+    parser.add_argument("--buy_last", action="store_true", default=False, help="buy the last item if we're in a loop")
     args = parser.parse_args()
     params = vars(args)
     return params
