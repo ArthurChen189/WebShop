@@ -60,11 +60,13 @@ def get_data(split='train', filter_long_trajs=20):
 
     num_trajs = 0
     traj_list = []
+    filtered_traj_count = 0
     for json_str in json_list:
         result = json.loads(json_str)
         # we filter out long trajectories
         if filter_long_trajs:
             if len(result['actions']) > filter_long_trajs:
+                filtered_traj_count += 1
                 continue
         s = process_goal(result['states'][0])
         assert s in human_goals, s
@@ -75,22 +77,23 @@ def get_data(split='train', filter_long_trajs=20):
 
         num_trajs += 1
         traj_list.append(result)
-
     print(f"num of {split} trajs: {num_trajs}")
+    if filter_long_trajs:
+        print(f"num of filtered trajs: {filtered_traj_count}")
     return traj_list
 
 
-def preprocess_trajs(trajs):
+def preprocess_trajs(trajs, columns_to_remove=None):
     # check if all keys are the same
     keys = trajs[0].keys()
     for traj in trajs:
         assert traj.keys() == keys, "keys are not the same"
     
     # remove useless columns
-    columns = ['images', 'action_idxs', 'actions_translate']
-    for traj in trajs:
-        for col in columns:
-            del traj[col]
+    if columns_to_remove:
+        for traj in trajs:
+            for col in columns_to_remove:
+                del traj[col]
 
     # extract instruction before "[button]" and after "Instruction"
     def extract_instruction(sample):
@@ -109,7 +112,8 @@ def preprocess_trajs(trajs):
         else:
             preprocessed_trajs[instr] = [traj]
 
-    print(f"there are {len(preprocessed_trajs)} out of {len(trajs)} unique base instructions")
+    print(f"there are {len(preprocessed_trajs)} out of {len(trajs)} unique instructions")
+    print(f"columns are {keys}")
     return preprocessed_trajs
 
 def convert_action(action):
@@ -176,8 +180,7 @@ def remove_instruction(obs, instruction, test_time=False):
 
 # this is modified based on the original SwiftSage code
 def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=10, include_past_obs=False,
-                           no_instr_in_past_obs=True, no_instr_in_curr_obs=False, action_to_dict=True, input_instr=True,
-                           tokenizer=None, max_length=None, test_time=False):
+                           no_instr_in_past_obs=True, no_instr_in_curr_obs=False, action_to_dict=True, input_instr=True, test_time=False):
     """Composes the input string for WebGUM, which consists of the instruction, the action history, the current observation.
     Args:
         step_id (int): the step id
@@ -220,37 +223,37 @@ def compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent
     # current observation has instruction in it
     curr_obs = remove_instruction(curr_obs, instruction, test_time) if no_instr_in_curr_obs else curr_obs
     input_str += "Current observation: " + curr_obs + " " 
-
     eos_prompt = '</s> What action should you do next? </s> '
-    # if tokenizer is provided, truncate the input string to the max length. Because we want to add the eos prompt
-    # to the end of the input string, we need to make sure the input string is not truncated
-    if tokenizer and max_length:
-        length = len(tokenizer.tokenize(input_str))
-        if length > max_length - 11: # if the input string is too long, truncate it
-            input_str = tokenizer.convert_tokens_to_string(tokenizer.tokenize(input_str, max_length=max_length-11, truncation=True, padding=False))
     input_str += eos_prompt
     input_str = sanitizeStr(input_str)
     return input_str, label
 
-def compose_webshop_instance_v1(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
+def compose_webshop_instance_v1(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False, window_size=3):
     """Compose the input string for WebGUM, which consists of the instruction, the action history, the observation history, the current observation.
     """
-    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=3, 
+    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=window_size,
                               no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=True, input_instr=True,
                               include_past_obs=True, test_time=test_time)
 
 
-def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False):
+def compose_webshop_instance_v2(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, test_time=False, window_size=20):
     """Compose the input string for WebGUM, which consists of the instruction, the action history, the current observation.
     This version does not include the past observations in the input string to ensure the observation is not truncated.
     It has a sliding window size of 20 and does not convert the actions to dictionary format.
     """
-    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=20,
+    return compose_webshop_instance(step_id, instruction, curr_action, curr_obs, recent_actions, recent_obs, window_size=window_size,
                               no_instr_in_past_obs=True, no_instr_in_curr_obs=True, action_to_dict=False, input_instr=True,
                               include_past_obs=False, test_time=test_time)
 
+def filter_long_input(input_str, tokenizer, max_length=1024):
+    """
+    Filter out the trajectories where the input string is longer than the max length
+    """
+    encoded_input = tokenizer(input_str, max_length=max_length, truncation=False, padding="max_length").input_ids
+    return len(encoded_input) > max_length
 
-def construct_data(preprocessed_trajs, out_path, parser_mode="v2"):
+
+def construct_data(preprocessed_trajs, out_path, parser_mode="v2", window_size=20, filter_func=None, max_length=None, tokenizer=None, verbose=False):
     """
     Construct the data in the SwiftSage format and export it into a .jsonl file
     """
@@ -263,11 +266,15 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v2"):
     else:
         raise ValueError(f"Unknown parser model: {parser_mode}")
     data = []
+    traj_number = 0
+    filtered_traj_count = 0
     for instr, trajs in preprocessed_trajs.items():
         for traj in trajs:
+            traj_list = []
+            no_filter = True
+
             if parser_mode == "v2plus":
-                if "actions_translate" not in traj:
-                    raise ValueError(f"actions_translate not found in traj: {traj}")
+                assert "actions_translate" in traj
                 actions = traj["actions_translate"]
             else:
                 actions = traj['actions']
@@ -275,8 +282,21 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v2"):
             observations = traj['states']
 
             for step_id, (action, obs) in enumerate(zip(actions, observations), start=1):
-                input_str, label = compose_webshop_instance(step_id, instr, action, obs, actions[:step_id-1], observations[:step_id-1])
-                data.append({"input": input_str, "target": label})
+                input_str, label = compose_webshop_instance(step_id, instr, action, obs, actions[:step_id-1],
+                                                            observations[:step_id-1], window_size=window_size)
+                if filter_func and filter_func(input_str, tokenizer, max_length):
+                    no_filter = False
+                    break
+                else:
+                    traj_list.append({"input": input_str, "target": label})
+            if no_filter:
+                data.extend(traj_list)
+            else:
+                filtered_traj_count += 1
+                if verbose:
+                    print(f"trajectory {traj_number} is filtered out")
+            traj_number += 1
+    print(f"there are {filtered_traj_count} out of {traj_number} trajectories filtered out")
     if out_path is not None:
         with open(out_path, 'wt') as f:
             for item in data:   
@@ -284,29 +304,58 @@ def construct_data(preprocessed_trajs, out_path, parser_mode="v2"):
     return data
 
 
-
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--filter_long_trajs', type=int, default=20)
+    parser.add_argument('--filter_long_trajs', type=int, default=None,
+                        help="filter out the trajectories that are more than the given length of actions")
     parser.add_argument('--parser_mode', type=str, default="v2", choices=["v1", "v2", "v2plus"])
     parser.add_argument('--output_dir', type=str, default="data/preprocessed/webshop/v2")
+    parser.add_argument('--filter_long_input', action='store_true', default=False,
+                        help="filter out the trajectories where the input string is longer than the max length")
+    parser.add_argument('--max_length', type=int, default=None,
+                        help="the max length of the input string")
+    parser.add_argument('--window_size', type=int, default=20,
+                        help="the window size for the action and observation history")
     args = parser.parse_args()
+
+    tokenizer = None
+    filter_func = None
+
+    if args.filter_long_input:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            "yuchenlin/swift_sw",
+            use_fast=True,
+            cache_dir="/h/arthur/.cache/huggingface/transformers"
+        )
+        tokenizer.add_tokens(['[button]', '[button_]', '[clicked button]', '[clicked button_]'], special_tokens=True)
+        filter_func = filter_long_input
+
 
     # get the data from the IL trajs file
     train_trajs = get_data('train', filter_long_trajs=args.filter_long_trajs)
-    dev_trajs = get_data('eval')
-    test_trajs = get_data('test')
+    dev_trajs = get_data('eval', filter_long_trajs=args.filter_long_trajs)
+    test_trajs = get_data('test', filter_long_trajs=args.filter_long_trajs)
 
     # preprocess the data
-    train_preprocessed_dict = preprocess_trajs(train_trajs)
-    dev_preprocessed_dict = preprocess_trajs(dev_trajs)
-    test_preprocessed_dict = preprocess_trajs(test_trajs)
+    columns = ['images', 'action_idxs', 'available_actions']
+    train_preprocessed_dict = preprocess_trajs(train_trajs, columns_to_remove=columns)
+    dev_preprocessed_dict = preprocess_trajs(dev_trajs, columns_to_remove=columns)
+    test_preprocessed_dict = preprocess_trajs(test_trajs, columns_to_remove=columns)
 
     # construct the data
     # if the output path directory does not exist, create it
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    train_data = construct_data(train_preprocessed_dict, f"{args.output_dir}/train.jsonl", parser_mode=args.parser_mode)
-    dev_data = construct_data(dev_preprocessed_dict, f"{args.output_dir}/val.jsonl", parser_mode=args.parser_mode)
-    test_data = construct_data(test_preprocessed_dict, f"{args.output_dir}/test.jsonl", parser_mode=args.parser_mode)
+    train_data = construct_data(train_preprocessed_dict, f"{args.output_dir}/train.jsonl",
+                                parser_mode=args.parser_mode, filter_func=filter_func,
+                                max_length=args.max_length, tokenizer=tokenizer, window_size=args.window_size)
+
+    dev_data = construct_data(dev_preprocessed_dict, f"{args.output_dir}/val.jsonl",
+                              parser_mode=args.parser_mode, filter_func=filter_func,
+                              max_length=args.max_length, tokenizer=tokenizer, window_size=args.window_size)
+
+    test_data = construct_data(test_preprocessed_dict, f"{args.output_dir}/test.jsonl",
+                              parser_mode=args.parser_mode, filter_func=filter_func,
+                              max_length=args.max_length, tokenizer=tokenizer, window_size=args.window_size)
