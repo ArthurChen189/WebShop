@@ -4,7 +4,7 @@ export PYTHONPATH="./"
 gpu=$1  
 seed=42
 split="test"
-lm_model="/checkpoint/arthur/13870799/checkpoint-400"
+lm_model="/checkpoint/arthur/13879772/checkpoint-400"
 compose_mode="v2"
 
 output_path="webshop_logs/${split}_${compose_mode}_editdistance_buylast/"

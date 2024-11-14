@@ -76,7 +76,8 @@ def eval(args):
             split = args["set"]
             logger.info("Split: " + split)
             input_str, _ = compose_instance(step_id=step+1, instruction=goal, curr_action=None, 
-                                            curr_obs=obs, recent_actions=recent_actions, recent_obs=recent_obs, test_time=True) 
+                                            curr_obs=obs, recent_actions=recent_actions, recent_obs=recent_obs,
+                                            test_time=True, window_size=args["window_size"])
 
             logger.info("InputStr: " + input_str)
             predStrs = get_model_output(args, input_str, tokenizer, lm_model, device, logger)
@@ -155,6 +156,7 @@ def parse_args():
     parser.add_argument("--max_output_len", type=int, default=128)
     parser.add_argument("--max_num_runs", type=int, default=500, help="maximum number of runs")
     parser.add_argument("--sbert", action="store_true", default=True)
+    parser.add_argument("--window_size", type=int, default=20)
 
     # Webshop specific arguments
     parser.add_argument("--human_goals", action="store_true", default=True)
