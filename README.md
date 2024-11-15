@@ -1,5 +1,25 @@
 # 🛒 WebShop
 
+### R2L Lab
+
+To build docker (you need to let docker have ~30 GB RAM):
+
+```bash
+docker build -m 36g -t vzhong/webshop:0.01 .
+```
+
+To run the server and expose port 3000 on host:
+
+```bash
+docker run --name webshop -p 3000:3000 vzhong/webshop:0.01 ./run_dev.sh
+```
+
+The webserver shoud be accessible at `http://localhost:3000/ABC`.
+
+
+
+### Original
+
 [![Python version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/release/python-3813/)
 [![License](https://img.shields.io/badge/License-Princeton-orange)](https://copyright.princeton.edu/policy)
 [![PyPI version](https://badge.fury.io/py/webshop.svg)](https://badge.fury.io/py/webshop)
