@@ -113,10 +113,10 @@ def eval(args):
                 break
 
             logger.info("Recent Actions: " + str(recent_actions))
-            logger.info("Recent Observations: " + str(recent_obs))
+            # logger.info("Recent Observations: " + str(recent_obs))
 
             # Early stopping if we're in a loop, and we buy it if we're not going back
-            if len(set(recent_actions[-10:])) == 2 and len(recent_actions[-10:]) > 10:
+            if len(set(recent_actions[-5:])) == 2 and len(recent_actions[-5:]) > 5:
                 logger.info("Many recent actions in history are the same -- model is likely in a loop, stopping early.")
                 if args["buy_last"] and action != "click[< prev]":
                     # we buy it
