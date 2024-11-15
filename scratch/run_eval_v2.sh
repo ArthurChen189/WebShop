@@ -4,10 +4,10 @@ export PYTHONPATH="./"
 gpu=$1  
 seed=42
 split="test"
-lm_model="/checkpoint/arthur/13879772/checkpoint-400"
+lm_model="/checkpoint/arthur/13879780/checkpoint-600"
 compose_mode="v2"
 
-output_path="webshop_logs/${split}_${compose_mode}_editdistance_buylast/"
+output_path="webshop_logs/${split}_${compose_mode}_testing/"
 eval_path="scratch"
 mkdir -p "${output_path}"
 echo "---> ${output_path}"
@@ -32,4 +32,5 @@ TOKENIZERS_PARALLELISM=false CUDA_VISIBLE_DEVICES="${gpu}" python "${eval_path}/
     --seed "${seed}" \
     --compose_mode "${compose_mode}" \
     --sbert \
-    --output_path "${output_path}"
+    --output_path "${output_path}" \
+    --window_size 20 \
